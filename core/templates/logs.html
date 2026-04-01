@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header flex-between">
+    <div>
+        <h1 class="page-title">Detection History</h1>
+        <p class="page-subtitle">Review all logged events</p>
+    </div>
+    <div class="actions">
+        <a href="{{ url_for('logs.export_csv') }}" class="btn-primary"><i class="fa-solid fa-download"></i> Export CSV</a>
+    </div>
+</div>
+
+<div class="glass-panel logs-panel">
+    <div class="filters">
+        <form method="GET" action="{{ url_for('logs.history') }}" class="filter-form">
+            <select name="class_filter" class="form-select" onchange="this.form.submit()">
+                <option value="All" {% if current_filter == 'All' %}selected{% endif %}>All Events</option>
+                <option value="Helmet" {% if current_filter == 'Helmet' %}selected{% endif %}>Helmet Only</option>
+                <option value="No Helmet" {% if current_filter == 'No Helmet' %}selected{% endif %}>No Helmet Only</option>
+            </select>
+        </form>
+    </div>
+
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th><i class="fa-solid fa-hashtag"></i> ID</th>
+                    <th><i class="fa-regular fa-clock"></i> Timestamp</th>
+                    <th><i class="fa-solid fa-tag"></i> Classification</th>
+                    <th><i class="fa-regular fa-image"></i> Snapshot</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs.items %}
+                <tr>
+                    <td>#{{ log.id }}</td>
+                    <td>{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>
+                        <span class="status-badge {% if log.class_name == 'Helmet' %}success{% else %}danger{% endif %}">
+                            {{ log.class_name }}
+                        </span>
+                    </td>
+                    <td>
+                        {% if log.snapshot_path %}
+                            <a href="{{ url_for('static', filename='snapshots/' + log.snapshot_path) }}" target="_blank" class="preview-btn">
+                                <i class="fa-solid fa-eye"></i> View Image
+                            </a>
+                        {% else %}
+                            <span class="text-muted">N/A</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="text-center empty-state">No logs found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Pagination -->
+    {% if logs.pages > 1 %}
+    <div class="pagination">
+        {% for page_num in logs.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+            {% if page_num %}
+                {% if logs.page == page_num %}
+                    <strong class="page-item active">{{ page_num }}</strong>
+                {% else %}
+                    <a href="{{ url_for('logs.history', page=page_num, class_filter=current_filter) }}" class="page-item">{{ page_num }}</a>
+                {% endif %}
+            {% else %}
+                <span class="page-item dots">...</span>
+            {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

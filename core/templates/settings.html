@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Camera & ROI Settings</h1>
+    <p class="page-subtitle">Configure RTSP stream and Region of Interest</p>
+</div>
+
+<div class="dashboard-grid">
+    <div class="glass-panel">
+        <div class="panel-header">
+            <h3><i class="fa-solid fa-link"></i> Camera Source</h3>
+        </div>
+        <form method="POST" action="{{ url_for('settings.config') }}">
+            <div class="form-group">
+                <label>RTSP URL or Camera Index (e.g. 0)</label>
+                <input type="text" name="rtsp_url" value="{{ setting.rtsp_url }}" class="form-select w-100" style="background: rgba(0,0,0,0.2)">
+            </div>
+            <button type="submit" class="btn-primary w-100"><i class="fa-solid fa-save"></i> Save Source</button>
+        </form>
+    </div>
+
+    <div class="glass-panel" style="grid-column: 1 / -1;">
+        <div class="panel-header flex-between">
+            <h3><i class="fa-solid fa-draw-polygon"></i> Draw Region of Interest (ROI)</h3>
+            <div>
+                <button type="button" class="btn-primary" onclick="loadReferenceFrame()"><i class="fa-solid fa-camera"></i> Grab Frame</button>
+                <form method="POST" action="{{ url_for('settings.config') }}" style="display: inline-block;">
+                    <input type="hidden" name="reset_roi" value="1">
+                    <button type="submit" class="btn-primary" style="background: rgba(239, 68, 68, 0.8)"><i class="fa-solid fa-trash"></i> Reset ROI</button>
+                </form>
+            </div>
+        </div>
+        
+        <p class="text-muted mb-3">Click on the image below to draw a polygon. Click the first point again to close the loop.</p>
+        
+        <div class="canvas-container" style="position: relative; max-width: 100%; border: 1px solid var(--glass-border); border-radius: 8px; overflow: hidden; background: #000;">
+            <img id="ref-image" src="" style="width: 100%; display: block; opacity: 0.5;">
+            <canvas id="roi-canvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: crosshair;"></canvas>
+        </div>
+        
+        <form method="POST" action="{{ url_for('settings.config') }}" class="mt-3">
+            <input type="hidden" name="roi_data" id="roi-data-input" value="{{ roi_json }}">
+            <button type="submit" class="btn-primary" id="save-roi-btn"><i class="fa-solid fa-save"></i> Save ROI</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('roi-canvas');
+    const ctx = canvas.getContext('2d');
+    const img = document.getElementById('ref-image');
+    const input = document.getElementById('roi-data-input');
+    
+    let points = [];
+    try {
+        points = JSON.parse(input.value);
+    } catch(e) {}
+    
+    let isDrawing = false;
+    
+    function loadReferenceFrame() {
+        img.src = "{{ url_for('settings.reference_frame') }}?t=" + new Date().getTime();
+        img.style.opacity = "1";
+    }
+    
+    function resizeCanvas() {
+        canvas.width = img.clientWidth || canvas.parentElement.clientWidth;
+        canvas.height = img.clientHeight || (canvas.width * 9/16);
+        draw();
+    }
+    
+    window.addEventListener('resize', resizeCanvas);
+    img.onload = resizeCanvas;
+    
+    canvas.addEventListener('mousedown', function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const nx = x / canvas.width;
+        const ny = y / canvas.height;
+        
+        if (points.length > 2) {
+            const firstX = points[0].x * canvas.width;
+            const firstY = points[0].y * canvas.height;
+            const dist = Math.sqrt(Math.pow(x - firstX, 2) + Math.pow(y - firstY, 2));
+            if (dist < 10) {
+                isDrawing = false;
+                updateInput();
+                draw();
+                return;
+            }
+        }
+        
+        points.push({x: nx, y: ny});
+        updateInput();
+        draw();
+    });
+    
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        if (points.length === 0) return;
+        
+        ctx.beginPath();
+        ctx.moveTo(points[0].x * canvas.width, points[0].y * canvas.height);
+        
+        for (let i = 1; i < points.length; i++) {
+            ctx.lineTo(points[i].x * canvas.width, points[i].y * canvas.height);
+        }
+        
+        ctx.strokeStyle = '#00f2fe';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        if (points.length > 2) {
+            ctx.fillStyle = 'rgba(0, 242, 254, 0.2)';
+            ctx.fill();
+        }
+        
+        ctx.fillStyle = '#ff003c';
+        points.forEach(p => {
+            ctx.beginPath();
+            ctx.arc(p.x * canvas.width, p.y * canvas.height, 4, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+    
+    function updateInput() {
+        input.value = JSON.stringify(points);
+    }
+    
+    setTimeout(loadReferenceFrame, 500);
+</script>
+
+<style>
+    .mt-3 { margin-top: 1.5rem; }
+    .mb-3 { margin-bottom: 1.5rem; }
+</style>
+{% endblock %}
